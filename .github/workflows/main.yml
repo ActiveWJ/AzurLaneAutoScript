@@ -26,8 +26,8 @@ jobs:
       # 第二步：配置Git用户名和邮箱
       - name: Configure Git
         run: |
-          git config --global user.name "Your Name"
-          git config --global user.email "your.email@example.com"
+          git config --global user.name "ActiveWJ"
+          git config --global user.email "1@example.com"
           # 配置Git的用户名和邮箱，用于提交更改
 
       # 第三步：添加上游远程仓库
