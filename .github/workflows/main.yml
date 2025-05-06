@@ -42,7 +42,7 @@ jobs:
         run: |
           git checkout -B master
           # 使用 rsync 同步文件并排除 .github/workflows 目录
-          rsync -av --exclude='.github/workflows' upstream/master:/ .
+          rsync -av --exclude='.github/workflows' --delete upstream/master:/ $(git rev-parse --show-toplevel)
           git add .
           git commit -m "Synchronize master branch excluding workflows"
           git push origin master --force
@@ -62,7 +62,7 @@ jobs:
         run: |
           git checkout -B dev
           # 使用 rsync 同步文件并排除 .github/workflows 目录
-          rsync -av --exclude='.github/workflows' upstream/dev:/ .
+          rsync -av --exclude='.github/workflows' --delete upstream/dev:/ $(git rev-parse --show-toplevel)
           git add .
           git commit -m "Synchronize dev branch excluding workflows"
           git push origin dev
