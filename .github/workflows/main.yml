@@ -37,16 +37,17 @@ jobs:
           git fetch upstream
           # 添加上游仓库为远程仓库，并获取其分支信息
 
-      # 第四步：同步 master 分支并排除 .github/workflows 目录
-      - name: Sync master branch excluding workflows
+      # 第四步：同步 master 分支
+      - name: Sync master branch
         run: |
           git checkout -B master
-          # 使用 rsync 同步文件并排除 .github/workflows 目录
-          rsync -av --exclude='.github/workflows' --delete upstream/master:/ $(git rev-parse --show-toplevel)
+          git reset --hard upstream/master
+          # 删除 .github/workflows 目录
+          rm -rf .github/workflows
           git add .
           git commit -m "Synchronize master branch excluding workflows"
           git push origin master --force
-          # 将同步后的 master 分支推送到远程仓库
+          # 将本地 master 分支重置为上游 master 分支，并强制推送到远程仓库
 
       # 第五步：检查并创建 dev 分支（如果不存在）
       - name: Create dev branch if it does not exist
@@ -57,16 +58,17 @@ jobs:
             git push origin dev
           fi
 
-      # 第六步：同步 dev 分支并排除 .github/workflows 目录
-      - name: Sync dev branch excluding workflows
+      # 第六步：同步 dev 分支
+      - name: Sync dev branch
         run: |
           git checkout -B dev
-          # 使用 rsync 同步文件并排除 .github/workflows 目录
-          rsync -av --exclude='.github/workflows' --delete upstream/dev:/ $(git rev-parse --show-toplevel)
+          git merge upstream/dev
+          # 删除 .github/workflows 目录
+          rm -rf .github/workflows
           git add .
           git commit -m "Synchronize dev branch excluding workflows"
           git push origin dev
-          # 将同步后的 dev 分支推送到远程仓库
+          # 同步上游仓库的 dev 分支到你的 Fork 仓库的 dev 分支
 
       # 第七步：检查 master 分支是否有更新
       - name: Check master branch for updates
