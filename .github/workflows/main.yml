@@ -1,0 +1,126 @@
+# 工作流名称
+name: Sync Upstream
+
+# 触发工作流的事件
+on:
+  # 按计划时间触发，每小时的第 10 分钟执行同步
+  schedule:
+    - cron: '10 * * * *'
+  # 允许手动触发工作流
+  workflow_dispatch:
+
+# 定义工作流中的作业
+jobs:
+  # 同步作业
+  sync:
+    # 运行作业的操作系统环境，使用最新的 Ubuntu 系统
+    runs-on: ubuntu-latest
+
+    # 作业的具体步骤
+    steps:
+      # 第一步：检出你的 Fork 仓库代码
+      - name: Checkout your forked repository
+        uses: actions/checkout@v4
+        # 检出你的Fork仓库代码，这是后续操作的基础
+
+      # 第二步：配置Git用户名和邮箱
+      - name: Configure Git
+        run: |
+          git config --global user.name "ActiveWJ"
+          git config --global user.email "1@example.com"
+          # 配置Git的用户名和邮箱，用于提交更改
+
+      # 第三步：添加上游远程仓库
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/LmeSzinc/AzurLaneAutoScript.git
+          git fetch upstream
+          # 添加上游仓库为远程仓库，并获取其分支信息
+
+      # 第四步：同步 master 分支
+      - name: Sync master branch
+        run: |
+          git checkout -B master
+          git reset --hard upstream/master
+          git push origin master --force
+          # 将本地 master 分支重置为上游 master 分支，并强制推送到远程仓库
+
+      # 第五步：检查并创建 dev 分支（如果不存在）
+      - name: Create dev branch if it does not exist
+        run: |
+          # 检查 dev 分支是否存在，如果不存在则创建
+          if ! git show-ref --verify --quiet refs/heads/dev; then
+            git checkout -b dev
+            git push origin dev
+          fi
+
+      # 第六步：同步 dev 分支
+      - name: Sync dev branch
+        run: |
+          git checkout -B dev
+          git merge upstream/dev
+          git push origin dev
+          # 同步上游仓库的 dev 分支到你的 Fork 仓库的 dev 分支
+
+      # 第七步：检查 master 分支是否有更新
+      - name: Check master branch for updates
+        id: check-master
+        run: |
+          # 检查 master 分支是否有更新
+          DIFF=$(git diff origin/master..upstream/master)
+          if [ -n "$DIFF" ]; then
+            echo "master_updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "master_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      # 第八步：检查 dev 分支是否有更新
+      - name: Check dev branch for updates
+        id: check-dev
+        run: |
+          # 检查 dev 分支是否有更新
+          DIFF=$(git diff origin/dev..upstream/dev)
+          if [ -n "$DIFF" ]; then
+            echo "dev_updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "dev_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      # 第九步：发送钉钉通知
+      - name: Send notification to DingTalk
+        if: steps.check-master.outputs.master_updated == 'true' || steps.check-dev.outputs.dev_updated == 'true'
+        run: |
+          # 获取 master 分支的最新提交信息
+          MASTER_COMMIT_AUTHOR=${{ github.event.commits[0].author.name }}
+          MASTER_COMMIT_MESSAGE=${{ github.event.commits[0].message }}
+          MASTER_COMMIT_TIME=${{ github.event.commits[0].commit.author.date }}
+          MASTER_COMMIT_URL=${{ github.event.commits[0].html_url }}
+
+          # 获取 dev 分支的最新提交信息
+          DEV_COMMIT_AUTHOR=${{ github.event.commits[1].author.name }}
+          DEV_COMMIT_MESSAGE=${{ github.event.commits[1].message }}
+          DEV_COMMIT_TIME=${{ github.event.commits[1].commit.author.date }}
+          DEV_COMMIT_URL=${{ github.event.commits[1].html_url }}
+
+          # 构建消息内容
+          MESSAGE=""
+
+          # 如果 master 分支有更新，添加其信息
+          if [ ${{ steps.check-master.outputs.master_updated }} == 'true' ]; then
+            MESSAGE+="master 分支：仓库已与上游同步。\n最新提交：\n作者：$MASTER_COMMIT_AUTHOR\n时间：$MASTER_COMMIT_TIME\n提交信息：$MASTER_COMMIT_MESSAGE\n链接：$MASTER_COMMIT_URL\n\n"
+          fi
+
+          # 如果 dev 分支有更新，添加其信息
+          if [ ${{ steps.check-dev.outputs.dev_updated }} == 'true' ]; then
+            MESSAGE+="dev 分支：仓库已与上游同步。\n最新提交：\n作者：$DEV_COMMIT_AUTHOR\n时间：$DEV_COMMIT_TIME\n提交信息：$DEV_COMMIT_MESSAGE\n链接：$DEV_COMMIT_URL"
+          fi
+
+          # 只有在 MESSAGE 不为空时才发送通知
+          if [ -n "$MESSAGE" ]; then
+            curl -X POST -H "Content-Type: application/json" -d "{
+              \"msgtype\": \"text\",
+              "text": {
+                "content": \"$MESSAGE\"
+              }
+            }" ${{ secrets.DINGTALK_WEBHOOK }}
+          fi
